@@ -1,0 +1,147 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ep-UsersTable
+      AttributeDefinitions:
+        - AttributeName: cognito_user_name
+          AttributeType: S
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: cognito_user_name
+          KeyType: HASH
+        - AttributeName: user_id
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+
+  RainmakerAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      AuthorizerResultTtlInSeconds: 300
+      IdentitySource: method.request.header.Authorization
+      Name: esp-RainmakerAuthorizer
+      ProviderARNs:
+        - !GetAtt CognitoUserPool.Arn
+        - !GetAtt EmailMobileCognitoUserPool.Arn
+      RestApiId: !ImportValue esp-RainmakerApi
+      Type: COGNITO_USER_POOLS
+
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: ep-user-pool
+      UsernameAttributes:
+        - phone_number
+        - email
+      AutoVerifiedAttributes:
+        - phone_number
+        - email
+      Schema:
+        - Name: user_id
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: super_admin
+          AttributeDataType: Boolean
+          Mutable: true
+          Required: false
+        - Name: admin
+          AttributeDataType: Boolean
+          Mutable: true
+          Required: false
+        - Name: customer
+          AttributeDataType: Boolean
+          Mutable: true
+          Required: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      LambdaConfig:
+        PostConfirmation:
+          Fn::Join:
+            - ""
+            - - "arn:"
+              - "aws:"
+              - "lambda:"
+              - !Ref 'AWS::Region'
+              - ":"
+              - !Ref 'AWS::AccountId'
+              - ":"
+              - "function:"
+              - "esp-LambdaMobileUser" # is avail only when espuser is deployed
+
+  CognitoUserPoolResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      Identifier: "com.espressif.rainmaker.oauth"
+      Name: "RainMaker Resource Server"
+      Scopes:
+        - ScopeName: "node.read"
+          ScopeDescription: "Read node status"
+        - ScopeName: "node.write"
+          ScopeDescription: "Write node status"
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn:
+      - UserPoolIdentityProvider
+      - GoogleUserPoolIdentityProvider
+      - LoginWithAmazonUserPoolIdentityProvider
+      - FacebookUserPoolIdentityProvider
+    Properties:
+      ClientName: rainmaker-user-pool-client
+      UserPoolId:
+        Ref: CognitoUserPool
+      ExplicitAuthFlows:
+        - ADMIN_NO_SRP_AUTH
+      GenerateSecret: false
+      SupportedIdentityProviders: !Ref IdentityProviders
+      AllowedOAuthFlows: ["implicit", "code"]
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes: ["phone", "email", "openid", "aws.cognito.signin.user.admin", "profile", "com.espressif.rainmaker.oauth/node.read", "com.espressif.rainmaker.oauth/node.write"]
+      CallbackURLs: !Ref CognitoCallBackUrls
+      RefreshTokenValidity: 3650 # 10 years
+
+  CognitoPoolDomainName:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId:
+        Ref: CognitoUserPool
+      Domain: !Ref DomainName
+
+  CognitoSMSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: espCognitoSMSSendRole
+      Tags:
+        - Key: created-by
+          Value: Espressif-rainmaker
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 'cognito-idp.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: "/"
+      Policies:
+        - PolicyName: CreateAuthChallengeTriggerLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - SNS:Publish
+                Resource:
+                  - "*"

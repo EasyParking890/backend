@@ -1,0 +1,51 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: provided.al2
+    Architectures: [arm64]
+
+Parameters:
+  StageName:
+    Type: String
+    Default: dev
+  LogRetentionInDays:
+    Type: Number
+    Default: 7
+
+Resources:
+  APIGatewayStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties: 
+      ApiId: !ImportValue ep-APIGatewayBaseOut
+      AutoDeploy: true
+      StageName: !Ref StageName
+      DefaultRouteSettings:
+        LoggingLevel: OFF
+        ThrottlingRateLimit: 100
+        ThrottlingBurstLimit: 1000
+      AccessLogSettings:
+        DestinationArn: !GetAtt BaseApiLog.Arn
+        Format: >-
+          {"requestId":"$context.requestId", "ip": "$context.identity.sourceIp",
+          "caller":"$context.identity.caller",
+          "user":"$context.identity.user","requestTime":"$context.requestTime",
+          "routeKey":"$context.routeKey","status":"$context.status"}
+
+  BaseApiLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ["", ["/aws/apigateway/","ep-BaseApiLog"]]
+      RetentionInDays: !Ref LogRetentionInDays
+     
+
+  APIGatewayDeployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - APIGatewayStage
+    Properties:
+      ApiId: !ImportValue ep-APIGatewayBaseOut
+      StageName: !Ref StageName

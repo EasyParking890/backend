@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  APIGatewayBase:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: ep-APIGatewaybase
+      CorsConfiguration:
+        AllowMethods: 
+          - POST 
+          - GET 
+          - PUT
+          - DELETE 
+          - OPTIONS
+        AllowHeaders: 
+          - 'X-Forwarded-For'
+        AllowOrigins: 
+          - '*'
+        AllowCredentials: False
+      ProtocolType: HTTP
+
+Outputs:
+  APIGatewayBase:
+    Value: !Ref APIGatewayBase
+    Export: 
+      Name: ep-APIGatewayBaseOut

@@ -1,0 +1,259 @@
+# Makefile for ESP Diagnostics
+.DEFAULT_GOAL := all
+
+.PHONY: all
+
+SILENT-$(VERBOSE) := @
+
+PROJECT_NAME = diagnostics
+# Application versioning
+MAJOR_VERSION := 1
+MINOR_VERSION := 0
+BUILD_DATE ?= $(shell date +%Y-%m-%dT%H:%M)
+BUILD_VERSION ?= $(shell git log --pretty=format:"%h" -1)
+
+CONFIG := "./config/stages/local.json"
+define GetValueFromConfig
+$(shell node -p "require('$(CONFIG)').$(1)")
+endef
+# Can be overridden too, undocumented as it is only a dev feature to be used only when completely sure.
+INFRA-CONFIG := "./config/infra/resources.json"
+define GetValueFromInfraConfig
+$(shell node -p "require('$(INFRA-CONFIG)').$(1)")
+endef
+
+EnableElastic := $(call GetValueFromConfig, EnableElastic)
+
+# Go compilation attributes
+LDFLAGS := "-s -w -X main.AppName=$(PROJECT_NAME) -X main.AppVersion=$(MAJOR_VERSION).$(MINOR_VERSION).$(BUILD_VERSION) -X main.AppBuildDate=$(BUILD_DATE)"
+
+# Deploy Packages - Names of the *.yml files in cmd (ordered)
+TRANSFORMBASE := mqtt/db
+ifeq ($(EnableElastic), True)
+	TRANSFORMBASE += elasticsearch/elasticutils
+	TRANSFORMBASE += elasticsearch/elasticdb
+endif
+$(info Elastic Search enabled = $(EnableElastic) )
+TRANSFORMFUNC := mqtt/transform/transformfunc
+
+APIBASE := api/base api/resources
+APIHANDLERFUNC := api/handler/handlerfunc
+APICOUNTNODE := api/handler/nodelogcount
+APILISTNODE := api/handler/nodeloglist api/handler/nodemetriclist api/handler/nodeparamlist  api/handler/nodeconfiglist
+APIINFONODE := api/handler/nodeinfo
+APIPROJECT := api/handler/project
+APIPARAM := api/handler/groupparam
+APIQUERY := api/handler/dynamicquery
+
+APIUSERPACKAGE  := api/handler/userpackage
+APIUSERWEBHOOK := api/handler/webhook
+PKGPARSERBASE := pkgparser/parserbase
+PKGPARSERFUNC := pkgparser/parser/parserfunc
+
+WEBHOOKBASE := webhook/webhookbase
+WEBHOOKFUNC := webhook/webhookfunc
+
+SIGNKEY := signkey/signkeyinit
+
+APIAUTHKEY := api/handler/authkey
+
+S3BUCKETBASE :=clientapi/s3base
+APIBASECLIENT := clientapi/clientbase
+APICLIENTSTAGE := clientapi/clientstage
+APICLIENTHANDLERFUNC := clientapi/clienthandler/clienthandlerfunc
+APICLIENTNODEHANDLER := clientapi/clienthandler/nodedatahandler
+APICLIENTCLOUDCONNECTOR := clientapi/clienthandler/cloudconnector
+
+APICLIENTNODEAUTH := clientapi/nodedataauthorizer/nodedataauthorizer
+APICLIENTCLOUDCONNECTORAUTH := clientapi/cloudconnectorauthorizer/cloudconnectorauthorizer
+
+APIUSERDASHBOARD := api/handler/userdashboard
+APINODETAGS := api/handler/nodetags
+APICONNECTORAUTHKEY := api/handler/connectorauthkey
+
+ACCOUNTTENANTBASE := accounttenant/useraccountbase
+APIACCOUNTTENANT :=  accounttenant/accounttenantapi/useraccountapi accounttenant/accounttenantapi/usertenantapi
+
+DASHBOARD := dashboard/dashboard
+LISTENERS := listeners/usernoderegister/usernoderegister listeners/nodetagsregister/nodetagsregister \
+listeners/nodeconnection/nodeconnection listeners/userregistration/userregistration
+
+APIBASESUPPORT := supportapi/supportapibase
+APIUSERSUPPORTHANDLER := supportapi/supportapihandler/usersupportapi
+APISUPPORTSTAGE := supportapi/supportapistage
+APISUPPORTHANDLERFUNC := supportapi/supportapihandler/supportapihandlerfunc
+APISUPPORTAUTH := supportapi/supportapiauthorizer/supportapiauthorizer
+
+
+JOBS := jobs/nodemasterinfosync/nodemasterinfosync
+
+
+ALERTBASE := alert/alertbase
+ALERTJOB := alert/alertconsolidator/alertconsolidator alert/alertnotifier/alertnotifier 
+APIUSERALERT := alert/alertapi/useralertapi/useralertapi 
+APIUSERNOTIFICATION :=  alert/alertapi/usernotificationapi/usernotificationapi 
+
+APISUPPORTALERT := alert/alertapi/supportalertapi/supportalertapi
+
+ 
+
+BILLINGBASE := billing/billingbase billing/usageaccumulator/usageaccumulator
+BILLINGUSAGE := billing/usageconsolidator/usageconsolidator billing/usageapi/usageapi
+BILLINGCREDITJOBS := billing/creditmonitor/creditmonitor billing/creditprovider/creditprovider
+
+PKGS := $(TRANSFORMBASE) $(PKGPARSERBASE) $(S3BUCKETBASE) $(WEBHOOKBASE) $(ACCOUNTTENANTBASE) $(ALERTBASE) $(BILLINGBASE) \
+$(SIGNKEY) $(APIBASECLIENT) $(APIBASESUPPORT) $(APIBASE) $(ALERTJOB) $(APISUPPORTALERT) $(APIUSERNOTIFICATION) \
+$(APIUSERALERT) $(LISTENERS) $(TRANSFORMFUNC) $(PKGPARSERFUNC) $(WEBHOOKFUNC) $(APIHANDLERFUNC) $(APICLIENTNODEAUTH) \
+$(APICLIENTCLOUDCONNECTORAUTH) $(APICLIENTHANDLERFUNC) $(APICLIENTNODEHANDLER) $(APICLIENTCLOUDCONNECTOR) $(APICLIENTSTAGE) \
+$(APICOUNTNODE) $(APILISTNODE) $(APIINFONODE) $(APIPROJECT) $(APICONNECTORAUTHKEY) $(APIAUTHKEY) $(APIUSERPACKAGE) \
+$(APIPARAM) $(APIQUERY) $(APINODETAGS) $(APIUSERDASHBOARD) $(APIACCOUNTTENANT) $(JOBS)  $(BILLINGUSAGE) \
+$(BILLINGCREDITJOBS) $(APISUPPORTAUTH) $(APISUPPORTHANDLERFUNC) $(APIUSERSUPPORTHANDLER) $(APISUPPORTSTAGE) 
+
+PUBLISH_LISTENERS := listeners/usernoderegister/usernoderegister listeners/nodetagsregister/nodetagsregister \
+listeners/nodeconnection/nodeconnection
+
+PUBLISH := $(TRANSFORMBASE) $(PKGPARSERBASE) $(TRANSFORMFUNC) $(PKGPARSERFUNC) \
+$(APIBASECLIENT) $(APIBASE) $(SIGNKEY) $(APICLIENTNODEAUTH) $(APICLIENTHANDLERFUNC) $(APICLIENTNODEHANDLER) \
+$(APICLIENTSTAGE) $(APIHANDLERFUNC) $(APICOUNTNODE) $(APILISTNODE) $(APIINFONODE) $(APIPROJECT) \
+$(APIAUTHKEY) $(APIUSERPACKAGE) $(APIPARAM) $(APIQUERY) $(APINODETAGS) $(APIUSERDASHBOARD) $(PUBLISH_LISTENERS)
+
+SAR := sars/diagsarbase sars/diagsarbaseapi sars/diagsarpro sars/diagsarcore sars/diagsarstandalone sars/diagsardashboard
+PUBLISH_PKGS := $(PUBLISH) $(DASHBOARD) $(SAR) 
+
+EXECUTABLES := $(wildcard cmd/*/*/*.go)
+OUTPUTS := $(patsubst cmd/%.go,%,$(EXECUTABLES))
+
+EXTENSIONS = $(wildcard cmd/*/*/extensions/*.go)
+EXTENSION_OUTPUTS := $(patsubst cmd/%.go,%,$(EXTENSIONS))
+
+
+
+S3-BUCKET := $(call GetValueFromConfig, s3Bucket)
+STAGE := $(call GetValueFromConfig, Stage)
+
+
+PUBLISH_VERSION := 1.0.0
+PUBLISH_REGION := us-east-1
+
+help:
+	@echo "Deploy packages List: $(notdir $(PKGS))"
+	@echo "Build packages List: $(notdir $(OUTPUTS))"
+	#command to build a package
+	@echo "make <BUILD-PKG> "
+	@echo ""
+	#command to build all packages
+	@echo "make build "
+	@echo ""
+	#command to deploy package
+	@echo "make <DEPLOY-PKG>-deploy CONFIG=<CONFIG-FILE-PATH>"
+	@echo ""
+	#command to build and deploy all packages
+	@echo "make deploy CONFIG=<CONFIG-FILE-PATH>"
+	@echo ""
+	#command to remove deployed package
+	@echo "make <DEPLOY-PKG>-remove "
+	@echo ""
+all: vet cfnlint test build extension 
+
+ci:
+	@sh ./scripts/ci/validate.sh
+
+vet:
+	@echo "Running style checks with golangci-lint"
+	@golangci-lint run
+
+test:
+	@go test ./... -coverprofile ./cover.out
+
+# Files to be built
+define build_targets
+build $(notdir $(1)): $(1)
+
+$(1):
+	@mkdir -p bin/$$@
+	@env GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -ldflags $(LDFLAGS) -o bin/$$@/bootstrap cmd/$$@.go 
+	@echo "-> Successfully built $$@.go => bin/$$@"
+
+endef
+
+$(foreach output,$(OUTPUTS),$(eval $(call build_targets,$(output))))
+
+# extensions to be built
+define build_extension_targets
+
+extension: $(notdir $(1))-extension
+
+$(notdir $(1))-extension:
+	@env GOOS=linux GOARCH=arm64 go build -ldflags $(LDFLAGS) -o bin/$(dir $(1)) cmd/$(1).go
+	@cd bin/$(patsubst %/extensions/,%,$(dir $(1))) && zip -r extension-$(notdir $(1)).zip . -i extensions/* && cd - 
+	@echo "-> Successfully built extension $(1).go => bin/$(dir $(1))"
+
+endef
+
+$(foreach output,$(EXTENSION_OUTPUTS),$(eval $(call build_extension_targets,$(output))))
+
+
+config := "BaseCloudURL=$(call GetValueFromConfig, BaseCloudURL)" \
+	"LogLevel=$(call GetValueFromConfig, LogLevel)" 
+
+	
+# Files to be deployed
+define pkg_targets
+deploy: $(notdir $(1))-deploy
+
+$(notdir $(1))-deploy:
+	@echo "==============================================="
+	@echo "Read configuration from $(CONFIG)."
+	@echo "Stage - $(STAGE), S3-Bucket - $(S3-BUCKET)."
+	@echo "AWS Profile - $(AWS_PROFILE), AWS Default Region - $(AWS_DEFAULT_REGION)."
+	@echo "==============================================="
+	@[ "$(S3-BUCKET)" ] || ( echo ">> Please enter valid s3 bucket name or create a bucket using command: aws s3 mb <YOUR_BUCKET_NAME>"; exit 1)
+	@sam package --template-file cmd/$(1).yml --output-template-file cmd/$(1)_package.yml --s3-bucket "$(S3-BUCKET)"
+
+	@sam deploy --template-file cmd/$(1)_package.yml --stack-name diag-$(notdir $(1)) --capabilities CAPABILITY_NAMED_IAM --no-fail-on-empty-changeset --parameter-overrides "StageName=$(STAGE)" $(2)
+
+remove $(1)-remove: $(notdir $(1))-remove
+
+$(notdir $(1))-remove:
+	@echo "==============================================="
+	@echo "Removing $(1)."
+	@echo "==============================================="
+	@aws cloudformation delete-stack --stack-name diag-$(notdir $(1))
+
+cfnlint $(1)-cfnlint: $(notdir $(1))-cfnlint
+
+$(notdir $(1))-cfnlint:
+	@echo "==============================================="
+	@echo "Linting $(1)."
+	@echo "==============================================="
+	@cfn-lint cmd/$(1).yml
+	@sam validate -t cmd/$(1).yml
+
+endef
+
+# Files to be published
+$(foreach pkg,$(PKGS),$(eval $(call pkg_targets,$(pkg), $(config))))
+
+define publish_targets
+publish: $(notdir $(1))-publish
+
+$(notdir $(1))-publish:
+	@echo "==============================================="
+	@echo "Publishing $(1)."
+	@echo "Read configuration from $(CONFIG)."
+	@echo "Publish Version - $(PUBLISH_VERSION), Publish Region - $(PUBLISH_REGION), S3-Bucket - $(S3-BUCKET)."
+	@echo "==============================================="
+	@[ "$(S3-BUCKET)" ] || ( echo ">> Please enter valid s3 bucket name or create a bucket using command: aws s3 mb <YOUR_BUCKET_NAME>"; exit 1)
+	@sam package --template-file cmd/$(1).yml --output-template-file cmd/$(1)_package.yml --s3-bucket "$(S3-BUCKET)" --s3-prefix "$(PUBLISH_VERSION)"/$(1)
+	@sam publish -t cmd/$(1)_package.yml --semantic-version "$(PUBLISH_VERSION)" --region "$(PUBLISH_REGION)"
+
+endef
+
+$(foreach pubpkgs,$(PUBLISH_PKGS),$(eval $(call publish_targets,$(pubpkgs))))
+
+clean:
+	@echo "Cleaning bin folder"
+	@rm -rf bin/
+	@echo "Cleaning package.yml files"
+	@find cmd -name \*_package.yml -type f -delete
+	@find . -name \*.yml.bak -type f -delete
