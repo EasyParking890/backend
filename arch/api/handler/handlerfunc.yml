@@ -65,10 +65,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: ep-HandlerLambdaFunction
-      CodeUri: ../../../bin/clientapi/clienthandler/clienthandler
+      CodeUri: ../../../bin/api/handler/handler
       Handler: bootstrap
       ReservedConcurrentExecutions: 5     
-      Role: !GetAtt HandlerFunctionLog.Arn
+      Role: !GetAtt HandlerLambdaRole.Arn
 
   HandlerIntegration:
     Type: 'AWS::ApiGatewayV2::Integration'
@@ -88,4 +88,10 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Join ["", ["arn:", !Ref 'AWS::Partition', ":execute-api:", !Ref 'AWS::Region', ":", !Ref 'AWS::AccountId', ":", !ImportValue ep-APIGatewayBaseOut, "/*/*"]]
+
+Outputs:
+  HandlerIntegration:
+    Value: !Ref HandlerIntegration
+    Export:
+      Name: ep-HandlerIntegrationOut
 

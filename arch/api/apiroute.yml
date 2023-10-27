@@ -1,0 +1,14 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  DemoApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties: 
+      ApiId: !ImportValue ep-APIGatewayBaseOut
+      AuthorizationType: NONE
+      RouteKey: POST /dev/demo
+      Target: !Join
+        - /
+        - - integrations
+          - !ImportValue ep-HandlerIntegrationOut
