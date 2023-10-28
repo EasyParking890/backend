@@ -6,7 +6,7 @@ Globals:
     Timeout: 30
     Runtime: provided.al2
     Architectures: [arm64]
-    MemorySize: 256
+    MemorySize: 128
     Environment:
       Variables:
         LOG_LEVEL: !Ref LogLevel
@@ -67,7 +67,7 @@ Resources:
       FunctionName: ep-HandlerLambdaFunction
       CodeUri: ../../../bin/api/handler/handler
       Handler: bootstrap
-      ReservedConcurrentExecutions: 5     
+      ReservedConcurrentExecutions: 1
       Role: !GetAtt HandlerLambdaRole.Arn
 
   HandlerIntegration:

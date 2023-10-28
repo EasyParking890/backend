@@ -2,12 +2,34 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
 Resources:
-  DemoApiRoute:
+  GetDevSpaceApiRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties: 
       ApiId: !ImportValue ep-APIGatewayBaseOut
       AuthorizationType: NONE
-      RouteKey: POST /dev/demo
+      RouteKey: GET /space
+      Target: !Join
+        - /
+        - - integrations
+          - !ImportValue ep-HandlerIntegrationOut
+
+  PostDevSpaceApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties: 
+      ApiId: !ImportValue ep-APIGatewayBaseOut
+      AuthorizationType: NONE
+      RouteKey: POST /space
+      Target: !Join
+        - /
+        - - integrations
+          - !ImportValue ep-HandlerIntegrationOut
+
+  PutDevSpaceApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties: 
+      ApiId: !ImportValue ep-APIGatewayBaseOut
+      AuthorizationType: NONE
+      RouteKey: PUT /space
       Target: !Join
         - /
         - - integrations
